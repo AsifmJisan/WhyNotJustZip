@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Project Resurrection Generator — standalone offline, password-protected project snapshots.
+"""WhyNotJustZip
 
 Python 3.9+; standard library only. Generates a self-restoring .py or .ps1 script.
 The generated Python restorer also uses only the Python standard library.
@@ -8,14 +8,14 @@ from __future__ import annotations
 import base64, fnmatch, getpass, hashlib, hmac, json, os, secrets, shutil, stat, struct, sys, tempfile, time, zipfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-APP_NAME = "Project Resurrection"
+APP_NAME = "WhyNotJustZip"
 FORMAT_VERSION = 2
 KDF_ITERATIONS = 600_000
 MAGIC = b"PRJRX2\0\0"  # exactly 8 bytes
 HEADER_LEN = 8 + 4 + 16 + 16
 TAG_LEN = 32
-DATA_BEGIN = "#--RESURRECTION-DATA-BEGIN--"
-DATA_END = "#--RESURRECTION-DATA-END--"
+DATA_BEGIN = "#--DATA-BEGIN--"
+DATA_END = "#--DATA-END--"
 
 DEFAULT_EXCLUDED_DIRS = {
     ".git", ".svn", ".hg", ".bzr", "node_modules", "__pycache__", ".venv", "venv", "env",
@@ -24,7 +24,7 @@ DEFAULT_EXCLUDED_DIRS = {
     "bower_components", "packages", ".next", ".nuxt", ".turbo", ".parcel-cache",
 }
 IGNORE_FILE_RE = lambda name: name.startswith(".") and name.endswith("ignore")
-MANIFEST_NAME = ".resurrection-manifest.json"
+MANIFEST_NAME = ".manifest.json"
 
 AES_SOURCE = r'''# Self-contained table-based AES-256 implementation (FIPS 197), CBC + encrypt-then-MAC.
 # This uses standard AES-256 primitives; keys are derived separately with PBKDF2-HMAC-SHA256.
@@ -346,7 +346,7 @@ def _should_exclude(relpath: str, is_dir: bool, inherited_rules: list[dict], rep
     if _is_ignored_rule_filename(name):
         return True, "ignore-rule file"
     if name == MANIFEST_NAME:
-        return True, "reserved resurrection manifest name"
+        return True, "reserved  manifest name"
     git_ignored = False; git_reason = None
     st_rules = [r for r in inherited_rules if r["kind"] == "stignore"]
     # Syncthing's first matching rule decides.
@@ -449,7 +449,7 @@ def zip_project(root: Path, items: list[dict], zip_path: Path) -> tuple[list[dic
                 raise RuntimeError(f"File changed while packaging: {rel} (expected {item['size']} bytes, read {bytes_written})")
             final_manifest.append({**item, "size":bytes_written, "sha256":digest.hexdigest()})
             uncompressed_total += bytes_written
-        manifest_doc = {"format":"ProjectResurrection", "version":FORMAT_VERSION,
+        manifest_doc = {"format":"WhyNotJustZip", "version":FORMAT_VERSION,
                         "created_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                         "hash":"SHA-256", "items":final_manifest}
         zf.writestr(MANIFEST_NAME, json.dumps(manifest_doc, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8"),
@@ -457,17 +457,17 @@ def zip_project(root: Path, items: list[dict], zip_path: Path) -> tuple[list[dic
     return final_manifest, uncompressed_total
 
 PY_RESTORER_HEAD = r'''#!/usr/bin/env python3
-# Project Resurrection — standalone offline restorer. Python 3.9+, standard library only.
+# WhyNotJustZip — standalone offline restorer. Python 3.9+, standard library only.
 import base64, getpass, hashlib, hmac, json, os, secrets, shutil, stat, struct, sys, tempfile, zipfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-APP_NAME = "Project Resurrection"
+APP_NAME = "WhyNotJustZip"
 MAGIC = b"PRJRX2\0\0"
 HEADER_LEN = 44
 TAG_LEN = 32
-MANIFEST_NAME = ".resurrection-manifest.json"
-DATA_BEGIN = "#--RESURRECTION-DATA-BEGIN--"
-DATA_END = "#--RESURRECTION-DATA-END--"
+MANIFEST_NAME = ".manifest.json"
+DATA_BEGIN = "#--DATA-BEGIN--"
+DATA_END = "#--DATA-END--"
 KDF_ITERATIONS_MIN = 100_000
 @@AES_SOURCE@@
 
@@ -488,7 +488,7 @@ def _payload_to_file(script_path, out_path):
                 try: dst.write(base64.b64decode(chunk, validate=True))
                 except Exception as exc: raise ValueError("Malformed Base64 payload") from exc
     if not saw_begin or not saw_end or out_path.stat().st_size < HEADER_LEN + 16 + TAG_LEN:
-        raise ValueError("No complete resurrection payload was found in this script")
+        raise ValueError("No complete  payload was found in this script")
 
 def _decrypt_envelope(envelope_path, zip_path, password):
     size = envelope_path.stat().st_size
@@ -553,7 +553,7 @@ def _restore(zip_path, destination):
         names = zf.namelist()
         if names.count(MANIFEST_NAME) != 1: raise ValueError("Archive manifest is missing or duplicated")
         manifest = json.loads(zf.read(MANIFEST_NAME).decode("utf-8"))
-        if manifest.get("format") != "ProjectResurrection" or manifest.get("version") != 2: raise ValueError("Unsupported manifest")
+        if manifest.get("format") != "WhyNotJustZip" or manifest.get("version") != 2: raise ValueError("Unsupported manifest")
         expected = { }
         for item in manifest.get("items", []):
             rel = _validate_relpath(item.get("path"))
@@ -614,7 +614,7 @@ def _restore(zip_path, destination):
             report = {"result":"success", "destination":str(destination), "files_verified":len(restored),
                       "directories_restored":sum(1 for x in expected.values() if x["kind"] == "dir"),
                       "bytes_restored":total, "hash":"SHA-256", "files":[{"path":p,"bytes":n,"sha256":d} for p,n,d in restored]}
-            report_path = destination.parent / (destination.name + "-resurrection-report.json")
+            report_path = destination.parent / (destination.name + "-report.json")
             report["report_path"] = str(report_path)
             report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
             return report
@@ -623,9 +623,9 @@ def _restore(zip_path, destination):
             raise
 
 def main():
-    print("\nProject Resurrection — offline restore\n")
+    print("\nWhyNotJustZip — offline restore\n")
     script = Path(__file__).resolve()
-    with tempfile.TemporaryDirectory(prefix="project-resurrection-") as td:
+    with tempfile.TemporaryDirectory(prefix="WhyNotJustZip-") as td:
         envelope = Path(td) / "payload.bin"; archive = Path(td) / "decrypted.zip"
         try:
             _payload_to_file(script, envelope)
@@ -633,7 +633,7 @@ def main():
             if not password: raise ValueError("An empty password is not accepted")
             _decrypt_envelope(envelope, archive, password)
             del password
-            default_name = script.stem.replace("-Resurrection", "") + "-restored"
+            default_name = script.stem.replace("-Archive", "") + "-restored"
             dest_text = input("New destination directory [" + str(Path.cwd() / default_name) + "]: ").strip()
             destination = Path(dest_text).expanduser() if dest_text else Path.cwd() / default_name
             destination = destination.absolute()
@@ -648,18 +648,18 @@ def main():
 
 if __name__ == "__main__":
     main()
-#--RESURRECTION-DATA-BEGIN--
+#--DATA-BEGIN--
 @@DATA@@
-#--RESURRECTION-DATA-END--
+#--DATA-END--
 '''
 
-PS_RESTORER_TEMPLATE = r'''# Project Resurrection - standalone PowerShell restorer (Windows PowerShell 5.1+ / PowerShell 7+)
+PS_RESTORER_TEMPLATE = r'''# WhyNotJustZip - standalone PowerShell restorer (Windows PowerShell 5.1+ / PowerShell 7+)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$DataBegin = '#--RESURRECTION-DATA-BEGIN--'
-$DataEnd = '#--RESURRECTION-DATA-END--'
+$DataBegin = '#--DATA-BEGIN--'
+$DataEnd = '#--DATA-END--'
 $Magic = [System.Text.Encoding]::ASCII.GetBytes("PRJRX2`0`0")
-$ManifestName = '.resurrection-manifest.json'
+$ManifestName = '.manifest.json'
 function Read-Payload([string]$ScriptPath, [string]$OutPath) {
     $inside = $false; $sawBegin = $false; $sawEnd = $false
     $stream = [System.IO.File]::Open($OutPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
@@ -674,7 +674,7 @@ function Read-Payload([string]$ScriptPath, [string]$OutPath) {
             }
         }
     } finally { $stream.Dispose() }
-    if (!$sawBegin -or !$sawEnd -or (Get-Item $OutPath).Length -lt 96) { throw 'No complete resurrection payload was found.' }
+    if (!$sawBegin -or !$sawEnd -or (Get-Item $OutPath).Length -lt 96) { throw 'No complete  payload was found.' }
 }
 function Derive-Key([string]$Password, [byte[]]$Salt, [int]$Iterations) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($Password)
@@ -738,7 +738,7 @@ function Restore-Zip([string]$ZipPath, [string]$Destination) {
         if ($m.Count -ne 1) { throw 'Archive manifest is missing or duplicated.' }
         $reader = New-Object System.IO.StreamReader($m[0].Open(),[System.Text.Encoding]::UTF8)
         try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
-        if ($manifest.format -ne 'ProjectResurrection' -or $manifest.version -ne 2) { throw 'Unsupported manifest.' }
+        if ($manifest.format -ne 'WhyNotJustZip' -or $manifest.version -ne 2) { throw 'Unsupported manifest.' }
         $expected = @{}
         foreach ($item in $manifest.items) { $rel=Validate-RelativePath ([string]$item.path); if($expected.ContainsKey($rel)){throw "Duplicate manifest path: $rel"}; if($item.kind -notin @('file','dir')){throw 'Unknown item type.'}; $expected[$rel]=$item }
         $seen = @{}
@@ -778,7 +778,7 @@ function Restore-Zip([string]$ZipPath, [string]$Destination) {
                 }
             }
             $report=[ordered]@{result='success';destination=$Destination;files_verified=$verified;directories_restored=@($manifest.items|Where-Object kind -eq 'dir').Count;bytes_restored=$total;hash='SHA-256';files=$reportFiles}
-            $reportPath = Join-Path (Split-Path -Parent $Destination) ((Split-Path -Leaf $Destination) + '-resurrection-report.json')
+            $reportPath = Join-Path (Split-Path -Parent $Destination) ((Split-Path -Leaf $Destination) + '-report.json')
             $report.report_path = $reportPath
             $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding UTF8
             Write-Host "Restore complete. SHA-256 verified for $verified files." -ForegroundColor Green
@@ -788,9 +788,9 @@ function Restore-Zip([string]$ZipPath, [string]$Destination) {
     } finally { $zip.Dispose() }
 }
 try {
-    Write-Host "`nProject Resurrection - offline restore`n" -ForegroundColor Cyan
+    Write-Host "`nWhyNotJustZip - offline restore`n" -ForegroundColor Cyan
     $scriptPath = $PSCommandPath
-    $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('project-resurrection-' + [guid]::NewGuid().ToString('N'))
+    $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('WhyNotJustZip-' + [guid]::NewGuid().ToString('N'))
     [void](New-Item -ItemType Directory -Path $temp)
     try {
         $envPath=Join-Path $temp 'payload.bin'; $zipPath=Join-Path $temp 'decrypted.zip'
@@ -800,22 +800,22 @@ try {
         try { $password=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
         if ([string]::IsNullOrEmpty($password)) { throw 'An empty password is not accepted.' }
         Decrypt-Payload $envPath $zipPath $password; $password=$null
-        $base = [System.IO.Path]::GetFileNameWithoutExtension($scriptPath) -replace '-Resurrection$',''
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($scriptPath) -replace '-$',''
         $default = Join-Path (Get-Location) ($base + '-restored')
         $answer=Read-Host "New destination directory [$default]"
         if ([string]::IsNullOrWhiteSpace($answer)) { $answer=$default }
         Restore-Zip $zipPath ([System.IO.Path]::GetFullPath($answer))
     } finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
 } catch { Write-Error ("RESTORE FAILED: " + $_.Exception.Message); exit 1 }
-#--RESURRECTION-DATA-BEGIN--
+#--DATA-BEGIN--
 @@DATA@@
-#--RESURRECTION-DATA-END--
+#--DATA-END--
 '''
 
 
 def build_script(root: Path, output_path: Path, fmt: str, password: str, generator_path: Path | None) -> dict:
     warnings: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="project-resurrection-build-") as td:
+    with tempfile.TemporaryDirectory(prefix="WhyNotJustZip-build-") as td:
         td_path = Path(td); zip_path = td_path / "project.zip"; envelope_path = td_path / "payload.bin"
         items, excluded, warnings = scan_project(root, output_path, generator_path)
         case_paths: dict[str, str] = {}
@@ -826,7 +826,7 @@ def build_script(root: Path, output_path: Path, fmt: str, password: str, generat
                 raise RuntimeError(f"Case-insensitive path collision makes this project non-portable to Windows: {prior!r} and {item['path']!r}")
             case_paths[folded] = item["path"]
         if not items:
-            raise RuntimeError("No files or directories remain after exclusions; refusing to create an empty resurrection script.")
+            raise RuntimeError("No files or directories remain after exclusions; refusing to create an empty  script.")
         final_manifest, uncompressed = zip_project(root, items, zip_path)
         zip_size = zip_path.stat().st_size
         envelope_size, cipher_size = encrypt_file(zip_path, envelope_path, password)
@@ -871,7 +871,7 @@ def _data_lines(path: Path):
 
 
 def main() -> int:
-    print("\n=== Project Resurrection Generator ===")
+    print("\n=== WhyNotJustZip ===")
     print("Standalone encrypted self-restoring scripts | offline | standard-library generator")
     print("\nThis does not delete, move, or modify source files.")
     try:
@@ -885,7 +885,7 @@ def main() -> int:
         choice = input("Format [1]: ").strip().lower() or "1"
         fmt = "py" if choice in ("1", "py", ".py", "python") else "ps1" if choice in ("2", "ps1", ".ps1", "powershell", "power shell") else None
         if not fmt: raise ValueError("Choose 1 for Python or 2 for PowerShell")
-        default_out = Path.cwd() / (root.name + "-Resurrection." + fmt)
+        default_out = Path.cwd() / (root.name + "-." + fmt)
         out_text = input(f"Output script path [{default_out}]: ").strip().strip('"')
         output = Path(out_text).expanduser().absolute() if out_text else default_out.absolute()
         if output.resolve(strict=False) == root.resolve(): raise ValueError("Output path must be a file, not the source directory")

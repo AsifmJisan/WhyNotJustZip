@@ -1,6 +1,6 @@
 ﻿#requires -Version 5.1
 <#
-Project Resurrection Generator
+WhyNotJustZip
 Creates one self-contained, text-only restoration .ps1 file.
 Requires Windows PowerShell 5.1+ and built-in .NET APIs. No third-party tools.
 
@@ -413,7 +413,7 @@ function New-SelfContainedArtifact {
     $mac=Get-HmacForFile -Key $macKey -Path $tempCipher -Prefix $prefix
     $engine=Get-StandaloneRestoreEngine
     $header=@"
-# Project Resurrection self-contained archive
+# Self-contained archive
 # PRX-VERSION: PRX1
 # PRX-SALT: $saltHex
 # PRX-IV: $ivHex
@@ -444,12 +444,12 @@ function New-SelfContainedArtifact {
 }
 
 try {
-    Write-Host 'PROJECT RESURRECTION GENERATOR' -ForegroundColor Cyan
+    Write-Host 'WhyNotJustZip' -ForegroundColor Cyan
     Write-Host 'Creates a password-protected, standalone text .ps1 archive.' -ForegroundColor Gray
     $root = (Read-Host 'Project folder to archive').Trim('"')
     if (-not (Test-Path -LiteralPath $root -PathType Container)) { throw 'The project folder does not exist.' }
     $root = [IO.Path]::GetFullPath($root)
-    $defaultName = (Split-Path $root -Leaf) + '-Resurrection.ps1'
+    $defaultName = (Split-Path $root -Leaf) + '-Archive.ps1'
     $output = (Read-Host "Output .ps1 path (default: $(Join-Path (Get-Location).Path $defaultName))").Trim('"')
     if ([string]::IsNullOrWhiteSpace($output)) { $output = Join-Path (Get-Location).Path $defaultName }
     $output = [IO.Path]::GetFullPath($output)
